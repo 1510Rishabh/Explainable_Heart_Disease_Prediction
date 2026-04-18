@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block title %}Results — Heart Disease Prediction{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" crossorigin="anonymous"></script>
+{% endblock %}
+
+{% block content %}
+<div class="page-transition">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+    <div>
+      <h1 class="h2 fw-bold text-heading mb-1">Model results</h1>
+      <p class="text-muted mb-0">Predictions from all trained estimators on your inputs.</p>
+    </div>
+    <a href="{{ url_for('index') }}" class="btn btn-outline-primary">New assessment</a>
+  </div>
+
+  {% set best = result.best_model_name %}
+  <div class="card border-0 shadow-sm mb-4 best-model-card">
+    <div class="card-body p-4">
+      <div class="row align-items-center">
+        <div class="col-lg-8">
+          <span class="badge bg-warning text-dark mb-2">Best model (highest test accuracy)</span>
+          <h2 class="h4 fw-bold mb-2">{{ best or 'N/A' }}</h2>
+          <p class="text-muted mb-0">
+            Test accuracy:
+            <strong>{{ ((result.best_accuracy or 0) * 100) | round(2) }}%</strong>
+          </p>
+        </div>
+        <div class="col-lg-4 text-lg-end mt-3 mt-lg-0">
+          {% if result.best_model_prediction is not none %}
+            {% if result.best_model_prediction == 1 %}
+              <span class="result-pill result-disease">Disease indicated</span>
+            {% else %}
+              <span class="result-pill result-healthy">No disease indicated</span>
+            {% endif %}
+          {% else %}
+            <span class="result-pill bg-secondary text-white">Unavailable</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-lg-7">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header bg-white border-bottom py-3">
+          <span class="fw-semibold">Per-model predictions</span>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>Model</th>
+                  <th>Test accuracy</th>
+                  <th>Prediction</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for name, pred in result.predictions.items() %}
+                <tr class="{% if name == best %}table-row-best{% endif %}">
+                  <td class="fw-medium">
+                    {{ name }}
+                    {% if name == best %}
+                      <span class="badge ms-1 bg-warning text-dark">Best</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% set acc = result.accuracies.get(name, 0) %}
+                    <span class="text-muted">{{ (acc * 100) | round(2) }}%</span>
+                  </td>
+                  <td>
+                    {% if pred == 1 %}
+                      <span class="badge rounded-pill bg-danger-subtle text-danger border border-danger">Disease</span>
+                    {% else %}
+                      <span class="badge rounded-pill bg-success-subtle text-success border border-success">No disease</span>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-5">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header bg-white border-bottom py-3">
+          <span class="fw-semibold">Accuracy comparison</span>
+        </div>
+        <div class="card-body">
+          <canvas id="accuracyChart" height="280" aria-label="Model accuracy bar chart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    const labels = {{ chart['labels'] | tojson }};
+    const values = {{ chart['values'] | tojson }};
+    const bestName = {{ (result.best_model_name or '') | tojson }};
+    const ctx = document.getElementById('accuracyChart');
+    if (!ctx || typeof Chart === 'undefined') return;
+
+    const barColors = labels.map(function (name) {
+      return name === bestName ? 'rgba(13, 110, 253, 0.85)' : 'rgba(108, 117, 125, 0.65)';
+    });
+
+    new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Test accuracy (%)',
+          data: values,
+          backgroundColor: barColors,
+          borderRadius: 6,
+          borderSkipped: false,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: function (ctx) {
+                return ctx.parsed.y.toFixed(2) + '%';
+              }
+            }
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            max: 100,
+            ticks: { callback: function (v) { return v + '%'; } }
+          },
+          x: {
+            ticks: { maxRotation: 45, minRotation: 45, font: { size: 11 } } }
+        }
+      }
+    });
+  })();
+</script>
+{% endblock %}
